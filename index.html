@@ -240,6 +240,7 @@
     <button class="tab" data-tab="trace">Trace a batch</button>
     <button class="tab" data-tab="production">Production Batches</button>
     <button class="tab" data-tab="sterilization">Sterilization Cycles</button>
+    <button class="tab" data-tab="documents">Documents &amp; Certificates</button>
   </div>
 
   <!-- DASHBOARD -->
@@ -302,6 +303,40 @@
     </div>
   </div>
 
+  <!-- DOCUMENTS & CERTIFICATES -->
+  <div id="documents-tab" class="hidden">
+    <div class="toolbar">
+      <input type="text" id="doc-search" placeholder="Search document name, number, or issuing body..." />
+      <select id="doc-category-filter">
+        <option value="">All categories</option>
+        <option value="ISO Certificate">ISO Certificate</option>
+        <option value="CE Marking">CE Marking</option>
+        <option value="CDSCO / BIS License">CDSCO / BIS License</option>
+        <option value="Calibration Certificate">Calibration Certificate</option>
+        <option value="SOP">SOP</option>
+        <option value="Supplier Certificate (COA)">Supplier Certificate (COA)</option>
+        <option value="Other">Other</option>
+      </select>
+      <select id="doc-status-filter" class="essential-filter">
+        <option value="">All statuses</option>
+        <option value="needs-attention">Needs attention soon</option>
+        <option value="expired">Expired</option>
+        <option value="active">Active (not yet due)</option>
+      </select>
+      <button class="btn btn-primary" id="add-document-btn">Add document</button>
+    </div>
+    <div id="doc-alert-wrap"></div>
+    <div class="stats" id="doc-stats"></div>
+    <div class="table-card">
+      <table class="desktop-only-table">
+        <thead><tr><th>Document</th><th>Category</th><th>Number</th><th>Expiry</th><th>Status</th><th></th></tr></thead>
+        <tbody id="doc-table-body"></tbody>
+      </table>
+      <div class="card-list mobile-only-cards" id="doc-cards"></div>
+      <div class="empty-state hidden" id="doc-empty">No documents added yet.</div>
+    </div>
+  </div>
+
 </div>
 
 <div id="modal-root"></div>
@@ -356,6 +391,8 @@ let skus = [];
 let productionBatches = [];
 let cycles = [];
 let cycleBatches = [];
+let documents = [];
+const DOCUMENTS_BUCKET = 'compliance-documents';
 
 function checkSession(){
   const saved = localStorage.getItem('sterix_lead_user');
@@ -471,19 +508,20 @@ document.querySelectorAll('.tab[data-tab]').forEach(tab => {
     document.querySelectorAll('.tab[data-tab]').forEach(t => t.classList.remove('active'));
     tab.classList.add('active');
     const which = tab.dataset.tab;
-    ['dashboard','trace','production','sterilization'].forEach(t => {
+    ['dashboard','trace','production','sterilization','documents'].forEach(t => {
       document.getElementById(t + '-tab').classList.toggle('hidden', t !== which);
     });
-    const titles = { dashboard: 'Dashboard', trace: 'Trace a batch', production: 'Production Batches', sterilization: 'Sterilization Cycles' };
+    const titles = { dashboard: 'Dashboard', trace: 'Trace a batch', production: 'Production Batches', sterilization: 'Sterilization Cycles', documents: 'Documents & Certificates' };
     document.getElementById('page-title').textContent = titles[which];
     if(which === 'dashboard') renderDashboard();
     if(which === 'production') renderProduction();
     if(which === 'sterilization') renderCycles();
+    if(which === 'documents') renderDocuments();
   });
 });
 
 async function loadAll(){
-  await Promise.all([loadSkus(), loadProductionBatches(), loadCycles(), loadCycleBatches()]);
+  await Promise.all([loadSkus(), loadProductionBatches(), loadCycles(), loadCycleBatches(), loadDocuments()]);
   renderDashboard();
 }
 
@@ -512,6 +550,241 @@ async function loadCycleBatches(){
   cycleBatches = data || [];
 }
 
+async function loadDocuments(){
+  const { data, error } = await sb.from('compliance_documents').select('*').order('expiry_date', { ascending: true, nullsFirst: false });
+  if(error){ console.error(error); return; }
+  documents = data || [];
+}
+
+// Computes a document's effective status, layering date-based logic under
+// any manually-set status. A manual status of "Superseded" or "Renewal in
+// progress" always wins — only when status is plain "Active" do we check
+// the expiry date against today and the document's own reminder window.
+function documentEffectiveStatus(doc){
+  if(doc.status !== 'Active') return doc.status;
+  if(!doc.expiry_date) return 'Active';
+  const daysLeft = Math.round((new Date(doc.expiry_date) - Date.now()) / 86400000);
+  if(daysLeft < 0) return 'Expired';
+  if(daysLeft <= (doc.reminder_days_before || 60)) return 'Needs attention';
+  return 'Active';
+}
+
+function documentStatusPill(effectiveStatus){
+  if(effectiveStatus === 'Expired') return 'pill-critical';
+  if(effectiveStatus === 'Needs attention') return 'pill-low';
+  if(effectiveStatus === 'Superseded') return 'pill-neutral';
+  if(effectiveStatus === 'Renewal in progress') return 'pill-low';
+  return 'pill-ok';
+}
+
+function renderDocuments(){
+  const search = (document.getElementById('doc-search').value || '').toLowerCase();
+  const catF = document.getElementById('doc-category-filter').value;
+  const statusF = document.getElementById('doc-status-filter').value;
+
+  let filtered = documents.filter(d => {
+    const matchesSearch = !search || d.name.toLowerCase().includes(search) || (d.document_number||'').toLowerCase().includes(search) || (d.issuing_body||'').toLowerCase().includes(search);
+    const matchesCat = !catF || d.category === catF;
+    const eff = documentEffectiveStatus(d);
+    const matchesStatus = !statusF
+      || (statusF === 'needs-attention' && eff === 'Needs attention')
+      || (statusF === 'expired' && eff === 'Expired')
+      || (statusF === 'active' && eff === 'Active');
+    return matchesSearch && matchesCat && matchesStatus;
+  });
+
+  const expiredCount = documents.filter(d => documentEffectiveStatus(d) === 'Expired').length;
+  const needsAttentionCount = documents.filter(d => documentEffectiveStatus(d) === 'Needs attention').length;
+
+  document.getElementById('doc-stats').innerHTML = `
+    <div class="stat-card"><p class="stat-label">Total Documents</p><p class="stat-value">${documents.length}</p></div>
+    <div class="stat-card"><p class="stat-label">Expired</p><p class="stat-value ${expiredCount > 0 ? 'danger' : ''}">${expiredCount}</p></div>
+    <div class="stat-card"><p class="stat-label">Needs Attention Soon</p><p class="stat-value ${needsAttentionCount > 0 ? 'warning' : ''}">${needsAttentionCount}</p></div>
+    <div class="stat-card"><p class="stat-label">Active</p><p class="stat-value">${documents.length - expiredCount - needsAttentionCount}</p></div>
+  `;
+
+  document.getElementById('doc-alert-wrap').innerHTML = (expiredCount > 0)
+    ? `<div class="alert alert-danger">${expiredCount} document${expiredCount > 1 ? 's' : ''} expired — renew as soon as possible.</div>`
+    : (needsAttentionCount > 0
+      ? `<div class="alert alert-warning">${needsAttentionCount} document${needsAttentionCount > 1 ? 's' : ''} approaching expiry.</div>`
+      : '');
+
+  document.getElementById('doc-empty').classList.toggle('hidden', filtered.length > 0);
+
+  document.getElementById('doc-table-body').innerHTML = filtered.map(d => {
+    const eff = documentEffectiveStatus(d);
+    return `
+      <tr>
+        <td><strong>${d.name}</strong>${d.issuing_body ? `<div class="sku-sub">${d.issuing_body}</div>` : ''}</td>
+        <td>${d.category}</td>
+        <td>${d.document_number || '—'}</td>
+        <td>${d.expiry_date ? new Date(d.expiry_date).toLocaleDateString('en-IN') : '—'}</td>
+        <td><span class="pill ${documentStatusPill(eff)}">${eff}</span></td>
+        <td>
+          <div style="display:flex;gap:4px;">
+            ${d.attachment_path ? `<button class="icon-btn" onclick="downloadDocumentAttachment('${d.id}')" aria-label="View file">📄</button>` : ''}
+            <button class="icon-btn" onclick="openEditDocumentModal('${d.id}')" aria-label="Edit">✎</button>
+            <button class="icon-btn" onclick="deleteDocument('${d.id}')" aria-label="Delete" style="color:var(--danger);">🗑</button>
+          </div>
+        </td>
+      </tr>`;
+  }).join('');
+
+  document.getElementById('doc-cards').innerHTML = filtered.map(d => {
+    const eff = documentEffectiveStatus(d);
+    return `
+      <div class="info-card">
+        <p class="info-card-title">${d.name}</p>
+        <div class="info-card-row"><span>${d.category}</span><span class="pill ${documentStatusPill(eff)}">${eff}</span></div>
+        ${d.expiry_date ? `<div class="info-card-row"><span>Expiry</span><span>${new Date(d.expiry_date).toLocaleDateString('en-IN')}</span></div>` : ''}
+        <div class="info-card-footer">
+          <span></span>
+          <div style="display:flex;gap:4px;">
+            ${d.attachment_path ? `<button class="icon-btn" onclick="downloadDocumentAttachment('${d.id}')" aria-label="View file">📄</button>` : ''}
+            <button class="icon-btn" onclick="openEditDocumentModal('${d.id}')" aria-label="Edit">✎</button>
+            <button class="icon-btn" onclick="deleteDocument('${d.id}')" aria-label="Delete" style="color:var(--danger);">🗑</button>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+}
+['doc-search','doc-category-filter','doc-status-filter'].forEach(id => {
+  document.getElementById(id).addEventListener('input', renderDocuments);
+  document.getElementById(id).addEventListener('change', renderDocuments);
+});
+
+function documentFormFields(doc){
+  return `
+    <div class="form-row"><label>Document name</label><input type="text" id="doc-name" placeholder="e.g. ISO 13485:2016 Certificate" value="${doc ? doc.name.replace(/"/g,'&quot;') : ''}" /></div>
+    <div class="form-row-grid">
+      <div class="form-row">
+        <label>Category</label>
+        <select id="doc-category">
+          ${['ISO Certificate','CE Marking','CDSCO / BIS License','Calibration Certificate','SOP','Supplier Certificate (COA)','Other'].map(c => `<option value="${c}" ${doc && doc.category===c ? 'selected' : ''}>${c}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-row"><label>Document / certificate number</label><input type="text" id="doc-number" value="${doc ? (doc.document_number||'').replace(/"/g,'&quot;') : ''}" /></div>
+    </div>
+    <div class="form-row"><label>Issuing body (optional)</label><input type="text" id="doc-issuer" placeholder="e.g. TÜV SÜD, CDSCO" value="${doc ? (doc.issuing_body||'').replace(/"/g,'&quot;') : ''}" /></div>
+    <div class="form-row-grid">
+      <div class="form-row"><label>Issue date</label><input type="date" id="doc-issue-date" value="${doc ? (doc.issue_date||'') : ''}" /></div>
+      <div class="form-row"><label>Expiry date (leave blank if none)</label><input type="date" id="doc-expiry-date" value="${doc ? (doc.expiry_date||'') : ''}" /></div>
+    </div>
+    <div class="form-row">
+      <label>Remind me this many days before expiry</label>
+      <input type="number" id="doc-reminder-days" min="1" value="${doc ? doc.reminder_days_before : 60}" />
+    </div>
+    <div class="form-row">
+      <label>Status</label>
+      <select id="doc-status">
+        ${['Active','Superseded','Renewal in progress'].map(s => `<option value="${s}" ${doc && doc.status===s ? 'selected' : ''}>${s}</option>`).join('')}
+      </select>
+      <p style="font-size:12px;color:var(--text-tertiary);margin:4px 0 0;">Leave as "Active" to let the expiry date and reminder window decide the status automatically.</p>
+    </div>
+    <div class="form-row"><label>Notes (optional)</label><textarea id="doc-notes" rows="2">${doc ? (doc.notes||'') : ''}</textarea></div>
+    <div class="form-row">
+      <label>${doc && doc.attachment_name ? 'Replace attached file' : 'Attach file (PDF or photo, optional)'}</label>
+      <input type="file" id="doc-file" accept="image/*,.pdf" />
+      ${doc && doc.attachment_name ? `<span style="font-size:12px;color:var(--text-tertiary);">Currently attached: ${doc.attachment_name}. Choosing a new file replaces it.</span>` : ''}
+    </div>`;
+}
+
+document.getElementById('add-document-btn').addEventListener('click', () => {
+  document.getElementById('modal-root').innerHTML = `
+    <div class="modal-overlay" onclick="if(event.target===this) closeModal()">
+      <div class="modal">
+        <h3>Add a document or certificate</h3>
+        ${documentFormFields(null)}
+        <div class="modal-actions">
+          <button class="btn" onclick="closeModal()">Cancel</button>
+          <button class="btn btn-primary" id="doc-submit-btn" onclick="submitDocument(null)">Save document</button>
+        </div>
+      </div>
+    </div>`;
+});
+
+function openEditDocumentModal(docId){
+  const doc = documents.find(d => d.id === docId);
+  if(!doc){ alert('Could not find that document.'); return; }
+  document.getElementById('modal-root').innerHTML = `
+    <div class="modal-overlay" onclick="if(event.target===this) closeModal()">
+      <div class="modal">
+        <h3>Edit document</h3>
+        ${documentFormFields(doc)}
+        <div class="modal-actions">
+          <button class="btn" onclick="closeModal()">Cancel</button>
+          <button class="btn btn-primary" id="doc-submit-btn" onclick="submitDocument('${docId}')">Save changes</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+async function submitDocument(docId){
+  const name = document.getElementById('doc-name').value.trim();
+  if(!name){ alert('Enter a document name.'); return; }
+
+  const btn = document.getElementById('doc-submit-btn');
+  btn.disabled = true; btn.textContent = 'Saving...';
+
+  const payload = {
+    name,
+    category: document.getElementById('doc-category').value,
+    document_number: document.getElementById('doc-number').value.trim() || null,
+    issuing_body: document.getElementById('doc-issuer').value.trim() || null,
+    issue_date: document.getElementById('doc-issue-date').value || null,
+    expiry_date: document.getElementById('doc-expiry-date').value || null,
+    reminder_days_before: Number(document.getElementById('doc-reminder-days').value) || 60,
+    status: document.getElementById('doc-status').value,
+    notes: document.getElementById('doc-notes').value.trim() || null,
+  };
+
+  const file = document.getElementById('doc-file').files[0];
+  try {
+    if(file){
+      const ext = file.name.split('.').pop();
+      const path = `${Date.now()}_${Math.random().toString(36).slice(2,8)}.${ext}`;
+      const { error: uploadErr } = await sb.storage.from(DOCUMENTS_BUCKET).upload(path, file, { cacheControl: '3600', upsert: false });
+      if(uploadErr) throw uploadErr;
+      payload.attachment_path = path;
+      payload.attachment_name = file.name;
+    }
+
+    if(docId){
+      const { error } = await sb.from('compliance_documents').update(payload).eq('id', docId);
+      if(error) throw error;
+    } else {
+      payload.created_by = currentUser.username;
+      const { error } = await sb.from('compliance_documents').insert(payload);
+      if(error) throw error;
+    }
+
+    closeModal();
+    await loadDocuments();
+    renderDocuments();
+  } catch(err){
+    btn.disabled = false; btn.textContent = docId ? 'Save changes' : 'Save document';
+    alert('Error: ' + err.message);
+  }
+}
+
+async function downloadDocumentAttachment(docId){
+  const doc = documents.find(d => d.id === docId);
+  if(!doc || !doc.attachment_path){ alert('No file attached to this document.'); return; }
+  const { data, error } = await sb.storage.from(DOCUMENTS_BUCKET).createSignedUrl(doc.attachment_path, 60);
+  if(error){ alert("Couldn't open file: " + error.message); return; }
+  window.open(data.signedUrl, '_blank');
+}
+
+async function deleteDocument(docId){
+  const doc = documents.find(d => d.id === docId);
+  if(!confirm(`Delete "${doc ? doc.name : 'this document'}"? This can't be undone.`)) return;
+  const { error } = await sb.from('compliance_documents').delete().eq('id', docId);
+  if(error){ alert('Error: ' + error.message); return; }
+  if(doc && doc.attachment_path){ await sb.storage.from(DOCUMENTS_BUCKET).remove([doc.attachment_path]); }
+  await loadDocuments();
+  renderDocuments();
+}
+
 function renderDashboard(){
   const pendingRelease = cycleBatches.filter(cb => cb.release_status === 'Pending');
   const onHold = cycleBatches.filter(cb => cb.release_status === 'On Hold');
@@ -524,9 +797,17 @@ function renderDashboard(){
     <div class="stat-card"><p class="stat-label">On Hold</p><p class="stat-value ${onHold.length > 0 ? 'danger' : ''}">${onHold.length}</p></div>
   `;
 
-  document.getElementById('dash-alert-wrap').innerHTML = (pendingRelease.length === 0 && onHold.length === 0)
-    ? `<div class="alert alert-success">No batches currently awaiting a release decision.</div>`
-    : '';
+  const docExpired = documents.filter(d => documentEffectiveStatus(d) === 'Expired');
+  const docNeedsAttention = documents.filter(d => documentEffectiveStatus(d) === 'Needs attention');
+
+  let alertHtml = '';
+  if(pendingRelease.length === 0 && onHold.length === 0 && docExpired.length === 0 && docNeedsAttention.length === 0){
+    alertHtml = `<div class="alert alert-success">No batches awaiting release, and no documents need attention right now.</div>`;
+  } else {
+    if(docExpired.length > 0) alertHtml += `<div class="alert alert-danger">${docExpired.length} document${docExpired.length > 1 ? 's' : ''} expired: ${docExpired.map(d=>d.name).join(', ')}</div>`;
+    if(docNeedsAttention.length > 0) alertHtml += `<div class="alert alert-warning">${docNeedsAttention.length} document${docNeedsAttention.length > 1 ? 's' : ''} approaching expiry: ${docNeedsAttention.map(d=>d.name).join(', ')}</div>`;
+  }
+  document.getElementById('dash-alert-wrap').innerHTML = alertHtml;
 
   const tbody = document.getElementById('dash-pending-body');
   const cardsEl = document.getElementById('dash-pending-cards');
@@ -562,6 +843,58 @@ function renderDashboard(){
         </div>
       </div>`;
   }).join('');
+
+  renderDashboardDocuments(docExpired, docNeedsAttention);
+}
+
+function renderDashboardDocuments(docExpired, docNeedsAttention){
+  let el = document.getElementById('dash-documents-wrap');
+  if(!el){
+    el = document.createElement('div');
+    el.id = 'dash-documents-wrap';
+    el.style.marginTop = '18px';
+    document.getElementById('dashboard-tab').appendChild(el);
+  }
+  const toShow = [...docExpired, ...docNeedsAttention];
+  if(toShow.length === 0){ el.innerHTML = ''; return; }
+
+  el.innerHTML = `
+    <div class="table-card">
+      <div class="table-card-header">
+        <p class="card-header">Documents needing attention</p>
+        <p class="card-header-desc">Expired or approaching expiry within their configured reminder window.</p>
+      </div>
+      <table class="desktop-only-table">
+        <thead><tr><th>Document</th><th>Category</th><th>Expiry</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          ${toShow.map(d => {
+            const eff = documentEffectiveStatus(d);
+            return `
+              <tr>
+                <td><strong>${d.name}</strong></td>
+                <td>${d.category}</td>
+                <td>${d.expiry_date ? new Date(d.expiry_date).toLocaleDateString('en-IN') : '—'}</td>
+                <td><span class="pill ${documentStatusPill(eff)}">${eff}</span></td>
+                <td><button class="btn" style="padding:4px 10px;font-size:12px;" onclick="openEditDocumentModal('${d.id}')">View / renew</button></td>
+              </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+      <div class="card-list mobile-only-cards">
+        ${toShow.map(d => {
+          const eff = documentEffectiveStatus(d);
+          return `
+            <div class="info-card">
+              <p class="info-card-title">${d.name}</p>
+              <div class="info-card-row"><span>${d.category}</span><span class="pill ${documentStatusPill(eff)}">${eff}</span></div>
+              <div class="info-card-footer">
+                <span>${d.expiry_date ? new Date(d.expiry_date).toLocaleDateString('en-IN') : '—'}</span>
+                <button class="btn" style="padding:4px 10px;font-size:12px;" onclick="openEditDocumentModal('${d.id}')">View / renew</button>
+              </div>
+            </div>`;
+        }).join('')}
+      </div>
+    </div>`;
 }
 
 document.getElementById('trace-btn').addEventListener('click', runTrace);
