@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sterix Global — Batch &amp; Sterilization Traceability</title>
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#0B3C5D" />
+<link rel="apple-touch-icon" href="sterix-icon.png" />
+<link rel="icon" href="sterix-icon.png" />
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --navy:#0B3C5D;
+    --navy-light:#0a3450;
+    --teal:#1B998B;
+    --teal-light:#e3f5f2;
+    --sky:#4FC3F7;
+    --sky-light:#eaf7fe;
+    --bg:#f4f6f9;
+    --card:#ffffff;
+    --border:#e3e7ee;
+    --text:#1c2533;
+    --text-secondary:#5b6678;
+    --text-tertiary:#8b94a3;
+    --danger:#c0392b;
+    --danger-bg:#fdecea;
+    --warning:#b7791f;
+    --warning-bg:#fdf3df;
+    --success:#1d9e75;
+    --success-bg:#e1f5ee;
+    --radius-md:8px;
+    --radius-lg:12px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);
+    color:var(--text);
+  }
+  .app{max-width:1280px;margin:0 auto;padding:20px 24px 60px;}
+
+  .header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;}
+  .header-left{display:flex;align-items:center;gap:14px;min-width:0;}
+  .header-logo{height:52px;flex-shrink:0;}
+  .header-tagline{margin:0;font-size:11px;font-weight:700;letter-spacing:0.8px;color:var(--teal);text-transform:uppercase;white-space:nowrap;}
+  .title-block{min-width:0;}
+  .title-block .title{font-size:19px;font-weight:600;color:var(--navy);margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .title-block .subtitle{font-size:13px;color:var(--text-secondary);margin:2px 0 0;}
+  .avatar{width:30px;height:30px;border-radius:50%;background:var(--teal);color:white;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:13px;flex-shrink:0;}
+  .header-user-pill{display:flex;align-items:center;gap:8px;padding:4px 12px 4px 4px;font-size:14px;color:var(--text);}
+  .hamburger-btn{display:none;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-md);width:36px;height:36px;font-size:17px;color:var(--navy);cursor:pointer;}
+  .profile-trigger{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:7px 16px;cursor:pointer;font-size:13px;font-weight:600;color:var(--navy);}
+  .profile-panel{display:none;position:absolute;right:0;top:calc(100% + 8px);background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px;min-width:200px;box-shadow:0 4px 16px rgba(0,0,0,0.08);z-index:40;}
+
+  body.view-mobile .header-tagline{font-size:9px;letter-spacing:0.4px;}
+  body.view-mobile .header-user-pill,
+  body.view-mobile .profile-trigger{display:none;}
+  body.view-mobile .hamburger-btn{display:flex;align-items:center;justify-content:center;}
+  body.view-mobile .header-logo{height:34px;}
+  body.view-mobile .title-block .title{font-size:16px;}
+
+  .tabs{display:flex;gap:4px;margin-bottom:18px;border-bottom:1px solid var(--border);}
+  body.view-mobile .tabs{overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;}
+  body.view-mobile .tab{white-space:nowrap;flex-shrink:0;padding:10px 14px;font-size:13px;}
+  .tab{padding:10px 18px;font-size:14px;font-weight:600;color:var(--text-secondary);background:none;border:none;cursor:pointer;border-bottom:2px solid transparent;border-radius:8px 8px 0 0;}
+  .tab.active{color:var(--navy);background:var(--card);border:1px solid var(--border);border-bottom:2px solid var(--card);margin-bottom:-1px;}
+
+  .toolbar{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;}
+  .toolbar input[type="text"]{flex:1;min-width:200px;padding:9px 14px;border:1px solid var(--border);border-radius:var(--radius-md);font-size:14px;background:var(--card);}
+  .toolbar select{padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius-md);font-size:14px;background:var(--card);color:var(--text);}
+  .btn{padding:9px 16px;border-radius:var(--radius-md);font-size:14px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--card);color:var(--text);display:inline-flex;align-items:center;gap:6px;}
+  .btn-primary{background:var(--navy);color:white;border-color:var(--navy);}
+  .btn-teal{background:var(--teal);color:white;border-color:var(--teal);}
+  .btn-danger{background:var(--danger);color:white;border-color:var(--danger);}
+  .btn-primary:hover{background:var(--navy-light);}
+  .btn:hover{background:var(--bg);}
+  .btn:disabled{opacity:0.5;cursor:not-allowed;}
+
+  .alert{display:flex;align-items:center;gap:10px;padding:11px 16px;border-radius:var(--radius-md);font-size:13px;margin-bottom:16px;}
+  .alert-danger{background:var(--danger-bg);color:#8a2c20;}
+  .alert-warning{background:var(--warning-bg);color:#8a6116;}
+  .alert-success{background:var(--success-bg);color:var(--success);}
+
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px;}
+  .stat-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px 16px;}
+  .stat-label{font-size:12px;color:var(--text-secondary);margin:0 0 6px;}
+  .stat-value{font-size:24px;font-weight:700;margin:0;color:var(--navy);}
+  .stat-value.danger{color:var(--danger);}
+  .stat-value.warning{color:var(--warning);}
+
+  .table-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;}
+  .table-card-header{padding:14px 16px;border-bottom:1px solid var(--border);}
+  .card-header{font-size:14px;font-weight:700;color:var(--navy);margin:0;}
+  .card-header-desc{font-size:12px;color:var(--text-secondary);margin:4px 0 0;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  thead th{text-align:left;padding:10px 14px;color:var(--text-secondary);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.4px;border-bottom:1px solid var(--border);background:var(--bg);}
+  tbody td{padding:11px 14px;border-bottom:1px solid var(--border);vertical-align:middle;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:#fafbfd;}
+  .sku-sub{font-size:12px;color:var(--text-tertiary);}
+
+  .pill{display:inline-block;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600;}
+  .pill-ok{background:var(--success-bg);color:var(--success);}
+  .pill-low{background:var(--warning-bg);color:var(--warning);}
+  .pill-critical{background:var(--danger-bg);color:var(--danger);}
+  .pill-neutral{background:var(--sky-light);color:var(--navy);}
+
+  .icon-btn{width:30px;height:30px;border-radius:6px;border:1px solid var(--border);background:var(--card);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-secondary);}
+  .icon-btn:hover{background:var(--bg);}
+
+  .empty-state{padding:50px 20px;text-align:center;color:var(--text-tertiary);}
+
+  .modal-overlay{position:fixed;inset:0;background:rgba(11,37,69,0.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px;}
+  .modal{background:var(--card);border-radius:var(--radius-lg);padding:24px;width:100%;max-width:520px;max-height:88vh;overflow-y:auto;}
+  .modal h3{margin:0 0 16px;font-size:17px;color:var(--navy);}
+  .form-row{margin-bottom:14px;}
+  .form-row label{display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:5px;}
+  .form-row input,.form-row select,.form-row textarea{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius-md);font-size:14px;font-family:inherit;}
+  .form-row-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;}
+
+  .login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);}
+  .login-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:36px 32px;width:100%;max-width:360px;text-align:center;}
+  .login-card h2{margin:0 0 4px;color:var(--navy);font-size:18px;}
+  .login-card p{margin:0 0 22px;color:var(--text-secondary);font-size:13px;}
+  .login-card input{width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-md);font-size:14px;margin-bottom:10px;}
+  .login-card .btn-primary{width:100%;padding:10px;margin-top:4px;}
+  .login-error{color:var(--danger);font-size:13px;margin-top:10px;}
+
+  .hidden{display:none !important;}
+  .text-right{text-align:right;}
+
+  .trace-result{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;margin-top:16px;}
+  .trace-section{margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border);}
+  .trace-section:last-child{margin-bottom:0;padding-bottom:0;border-bottom:none;}
+  .trace-section-title{font-size:12px;font-weight:700;color:var(--teal);text-transform:uppercase;letter-spacing:0.4px;margin:0 0 10px;}
+  .trace-row{display:flex;justify-content:space-between;gap:12px;padding:5px 0;font-size:13px;}
+  .trace-row span:first-child{color:var(--text-secondary);}
+  .trace-row span:last-child{font-weight:600;text-align:right;}
+
+  @media(max-width:900px){
+    .stats{grid-template-columns:repeat(2,1fr);}
+    .form-row-grid{grid-template-columns:1fr;}
+    .table-card{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+    table{min-width:600px;}
+  }
+
+  body.view-mobile .desktop-only-table{display:none;}
+  body.view-mobile .mobile-only-cards{display:flex;flex-direction:column;gap:8px;}
+  body.view-mobile .table-card{overflow-x:visible;}
+  body.view-mobile table{min-width:0;}
+  body.view-mobile .stats{grid-template-columns:repeat(2,1fr);}
+
+  body.view-desktop .mobile-only-cards{display:none;}
+  body.view-desktop .desktop-only-table{display:table;}
+  body.view-desktop .table-card{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+
+  .card-list{padding:10px;display:flex;flex-direction:column;gap:8px;}
+  .info-card{background:var(--bg);border-radius:var(--radius-md);padding:10px 12px;}
+  .info-card-title{font-size:13px;font-weight:600;color:var(--text);margin:0 0 6px;}
+  .info-card-row{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px;color:var(--text-secondary);}
+  .info-card-row + .info-card-row{margin-top:4px;}
+  .info-card-footer{display:flex;align-items:center;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);}
+</style>
+</head>
+<body>
+
+<div id="login-screen" class="login-wrap hidden">
+  <div class="login-card">
+    <img src="sterix-icon.png" alt="Sterix Global" style="height:64px;margin-bottom:10px;" />
+    <p style="margin:0 0 4px;font-size:17px;font-weight:700;color:var(--navy);">Sterix Global</p>
+    <p style="margin:0 0 18px;font-size:12px;font-weight:700;letter-spacing:1.5px;color:var(--teal);text-transform:uppercase;">Batch &amp; Sterilization Traceability</p>
+    <div style="display:flex;gap:4px;margin-bottom:18px;border-bottom:1px solid var(--border);">
+      <button class="tab active" id="tab-sign-in" style="flex:1;">Sign in</button>
+      <button class="tab" id="tab-sign-up" style="flex:1;">Create profile</button>
+    </div>
+
+    <div id="sign-in-panel">
+      <h2>Welcome back</h2>
+      <p>Sign in with the username and password you set up.</p>
+      <input type="text" id="login-username" placeholder="Username" autocomplete="off" />
+      <input type="password" id="login-password" placeholder="Password" autocomplete="off" />
+      <button class="btn btn-primary" id="login-btn">Sign in</button>
+      <div class="login-error hidden" id="login-error"></div>
+    </div>
+
+    <div id="sign-up-panel" class="hidden">
+      <h2>Create your profile</h2>
+      <p>New to the team? Set up your own username and password.</p>
+      <input type="text" id="signup-team-code" placeholder="Team code from your team lead" autocomplete="off" />
+      <input type="text" id="signup-username" placeholder="Choose a username" autocomplete="off" />
+      <input type="password" id="signup-password" placeholder="Choose a password (4+ characters)" autocomplete="new-password" />
+      <input type="password" id="signup-confirm" placeholder="Re-enter your password" autocomplete="new-password" />
+      <button class="btn btn-primary" id="signup-btn">Create profile</button>
+      <div class="login-error hidden" id="signup-error"></div>
+    </div>
+  </div>
+</div>
+
+<div id="app-screen" class="app hidden">
+
+  <div class="header">
+    <div class="header-left">
+      <img src="sterix-icon.png" alt="Sterix Global" class="header-logo" />
+      <div class="title-block">
+        <p class="header-tagline">Sterix Global · Compliance</p>
+        <p class="title" id="page-title">Batch &amp; Sterilization Traceability</p>
+        <p class="subtitle" id="page-subtitle"></p>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <div class="header-user-pill">
+        <div class="avatar" id="user-avatar">H</div>
+        <span id="user-name">—</span>
+      </div>
+      <button class="hamburger-btn" id="hamburger-btn" aria-label="Menu">☰</button>
+      <div class="profile-wrap" style="position:relative;">
+        <button class="profile-trigger" id="profile-trigger">Profile</button>
+        <div class="profile-panel" id="profile-panel">
+          <p style="font-size:11px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.4px;margin:0 0 10px;">My profile</p>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+            <div class="avatar" id="user-avatar-panel">H</div>
+            <div>
+              <strong id="user-name-panel" style="display:block;font-size:14px;">—</strong>
+              <span style="font-size:12px;color:var(--text-secondary);">Sterix Global</span>
+            </div>
+          </div>
+          <button id="view-toggle-btn" class="btn" style="width:100%;margin-bottom:8px;"><span class="view-toggle-label">Switch to mobile view</span></button>
+          <button id="switch-profile-btn" class="btn" style="width:100%;margin-bottom:8px;">Switch profile</button>
+          <button id="logout-btn" class="btn" style="width:100%;color:var(--danger);border-color:var(--danger);">Log out</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="dashboard">Dashboard</button>
+    <button class="tab" data-tab="trace">Trace a batch</button>
+    <button class="tab" data-tab="production">Production Batches</button>
+    <button class="tab" data-tab="sterilization">Sterilization Cycles</button>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div id="dashboard-tab">
+    <div class="stats" id="dash-stats"></div>
+    <div id="dash-alert-wrap"></div>
+
+    <div class="table-card">
+      <div class="table-card-header">
+        <p class="card-header">Batches awaiting release decision</p>
+        <p class="card-header-desc">Production batches that have completed a sterilization cycle but haven't been Released, Rejected, or put On Hold yet.</p>
+      </div>
+      <table class="desktop-only-table">
+        <thead><tr><th>Batch No.</th><th>Product</th><th>Cycle</th><th>BI Result</th><th></th></tr></thead>
+        <tbody id="dash-pending-body"></tbody>
+      </table>
+      <div class="card-list mobile-only-cards" id="dash-pending-cards"></div>
+      <div class="empty-state hidden" id="dash-pending-empty">Nothing awaiting release right now.</div>
+    </div>
+  </div>
+
+  <!-- TRACE -->
+  <div id="trace-tab" class="hidden">
+    <div class="toolbar">
+      <input type="text" id="trace-input" placeholder="Enter a production batch number, e.g. PB-0001..." />
+      <button class="btn btn-primary" id="trace-btn">Trace</button>
+    </div>
+    <div id="trace-result-wrap"></div>
+  </div>
+
+  <!-- PRODUCTION BATCHES -->
+  <div id="production-tab" class="hidden">
+    <div class="toolbar">
+      <input type="text" id="prod-search" placeholder="Search batch number or product..." />
+      <button class="btn btn-primary" id="add-production-batch-btn">Log new production batch</button>
+    </div>
+    <div class="table-card">
+      <table class="desktop-only-table">
+        <thead><tr><th>Batch No.</th><th>Product</th><th>Qty</th><th>Produced</th><th>By</th><th>Status</th></tr></thead>
+        <tbody id="prod-table-body"></tbody>
+      </table>
+      <div class="card-list mobile-only-cards" id="prod-cards"></div>
+      <div class="empty-state hidden" id="prod-empty">No production batches logged yet.</div>
+    </div>
+  </div>
+
+  <!-- STERILIZATION CYCLES -->
+  <div id="sterilization-tab" class="hidden">
+    <div class="toolbar">
+      <input type="text" id="cycle-search" placeholder="Search cycle number..." />
+      <button class="btn btn-primary" id="add-cycle-btn">Log new sterilization cycle</button>
+    </div>
+    <div class="table-card">
+      <table class="desktop-only-table">
+        <thead><tr><th>Cycle No.</th><th>Date</th><th>Gas conc. (mg/L)</th><th>Temp (°C)</th><th>Time (min)</th><th>RH %</th><th>BI Result</th><th>Batches</th><th></th></tr></thead>
+        <tbody id="cycle-table-body"></tbody>
+      </table>
+      <div class="card-list mobile-only-cards" id="cycle-cards"></div>
+      <div class="empty-state hidden" id="cycle-empty">No sterilization cycles logged yet.</div>
+    </div>
+  </div>
+
+</div>
+
+<div id="modal-root"></div>
+
+<script>
+const SUPABASE_URL = 'https://tdxzbdkvzicizmglcbxk.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_WmkXH8a3wOWgIzPS6_FJvA_eJF5wCfi';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let currentUser = null;
+
+const VIEW_MODE_KEY = 'sterix_view_mode_override';
+const MOBILE_BREAKPOINT = 768;
+let currentViewMode = 'desktop';
+
+function getViewModeOverride(){
+  const saved = localStorage.getItem(VIEW_MODE_KEY);
+  return (saved === 'mobile' || saved === 'desktop') ? saved : null;
+}
+function resolveViewMode(){
+  const override = getViewModeOverride();
+  if(override) return override;
+  return window.innerWidth <= MOBILE_BREAKPOINT ? 'mobile' : 'desktop';
+}
+function applyViewMode(){
+  const resolved = resolveViewMode();
+  const changed = resolved !== currentViewMode;
+  currentViewMode = resolved;
+  document.body.classList.toggle('view-mobile', resolved === 'mobile');
+  document.body.classList.toggle('view-desktop', resolved === 'desktop');
+  const toggleLabel = resolved === 'mobile' ? 'Switch to desktop view' : 'Switch to mobile view';
+  document.querySelectorAll('.view-toggle-label').forEach(el => { el.textContent = toggleLabel; });
+  if(changed && currentUser){ rerenderActiveTab(); }
+}
+function setViewModeOverride(mode){
+  if(mode === null){ localStorage.removeItem(VIEW_MODE_KEY); } else { localStorage.setItem(VIEW_MODE_KEY, mode); }
+  applyViewMode();
+}
+function toggleViewMode(){
+  const next = currentViewMode === 'mobile' ? 'desktop' : 'mobile';
+  setViewModeOverride(next);
+}
+function rerenderActiveTab(){
+  const active = document.querySelector('.tab.active')?.dataset.tab || 'dashboard';
+  if(active === 'dashboard') renderDashboard();
+  if(active === 'production') renderProduction();
+  if(active === 'sterilization') renderCycles();
+}
+window.addEventListener('resize', () => { applyViewMode(); });
+
+let skus = [];
+let productionBatches = [];
+let cycles = [];
+let cycleBatches = [];
+
+function checkSession(){
+  const saved = localStorage.getItem('sterix_lead_user');
+  if(saved){
+    currentUser = { username: saved };
+    showApp();
+  } else {
+    showLogin();
+  }
+}
+
+function showLogin(){
+  document.getElementById('login-screen').classList.remove('hidden');
+  document.getElementById('app-screen').classList.add('hidden');
+}
+
+function showApp(){
+  document.getElementById('login-screen').classList.add('hidden');
+  document.getElementById('app-screen').classList.remove('hidden');
+  const name = currentUser.username || '';
+  document.getElementById('user-name').textContent = name;
+  document.getElementById('user-avatar').textContent = name.charAt(0).toUpperCase();
+  document.getElementById('user-name-panel').textContent = name;
+  document.getElementById('user-avatar-panel').textContent = name.charAt(0).toUpperCase();
+  applyViewMode();
+  loadAll();
+}
+
+document.getElementById('login-btn').addEventListener('click', async () => {
+  const username = document.getElementById('login-username').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errEl = document.getElementById('login-error');
+  errEl.classList.add('hidden');
+  if(!username || !password){ errEl.textContent = 'Enter both your username and password.'; errEl.classList.remove('hidden'); return; }
+
+  const { data, error } = await sb.from('team_members').select('username, password').ilike('username', username).limit(1);
+  if(error){ errEl.textContent = "Couldn't check your login — try again."; errEl.classList.remove('hidden'); return; }
+  if(!data || data.length === 0 || data[0].password !== password){ errEl.textContent = 'Incorrect username or password.'; errEl.classList.remove('hidden'); return; }
+
+  currentUser = { username: data[0].username };
+  localStorage.setItem('sterix_lead_user', data[0].username);
+  showApp();
+});
+
+document.getElementById('tab-sign-in').addEventListener('click', () => switchAuthTab('signIn'));
+document.getElementById('tab-sign-up').addEventListener('click', () => switchAuthTab('signUp'));
+function switchAuthTab(tab){
+  const isSignIn = tab === 'signIn';
+  document.getElementById('tab-sign-in').classList.toggle('active', isSignIn);
+  document.getElementById('tab-sign-up').classList.toggle('active', !isSignIn);
+  document.getElementById('sign-in-panel').classList.toggle('hidden', !isSignIn);
+  document.getElementById('sign-up-panel').classList.toggle('hidden', isSignIn);
+}
+
+document.getElementById('signup-btn').addEventListener('click', async () => {
+  const teamCode = document.getElementById('signup-team-code').value.trim();
+  const username = document.getElementById('signup-username').value.trim();
+  const password = document.getElementById('signup-password').value;
+  const confirm = document.getElementById('signup-confirm').value;
+  const errEl = document.getElementById('signup-error');
+  errEl.classList.add('hidden');
+  if(!teamCode || !username || !password || !confirm){ errEl.textContent = 'Fill in every field.'; errEl.classList.remove('hidden'); return; }
+  if(password.length < 4){ errEl.textContent = 'Password should be at least 4 characters.'; errEl.classList.remove('hidden'); return; }
+  if(password !== confirm){ errEl.textContent = "Passwords don't match."; errEl.classList.remove('hidden'); return; }
+
+  const { data: settingsData, error: settingsError } = await sb.from('team_settings').select('team_code').eq('id', 1).limit(1);
+  if(settingsError || !settingsData || settingsData.length === 0){ errEl.textContent = "Couldn't verify the team code — try again."; errEl.classList.remove('hidden'); return; }
+  if(settingsData[0].team_code !== teamCode){ errEl.textContent = "That team code isn't right. Ask your team lead for it."; errEl.classList.remove('hidden'); return; }
+
+  const { data: existing, error: existingError } = await sb.from('team_members').select('username').ilike('username', username).limit(1);
+  if(existingError){ errEl.textContent = "Couldn't check that username — try again."; errEl.classList.remove('hidden'); return; }
+  if(existing && existing.length > 0){ errEl.textContent = 'That username is already taken. Try another.'; errEl.classList.remove('hidden'); return; }
+
+  const { error: insertError } = await sb.from('team_members').insert({ username, password });
+  if(insertError){ errEl.textContent = "Couldn't create your profile — try again."; errEl.classList.remove('hidden'); return; }
+
+  currentUser = { username };
+  localStorage.setItem('sterix_lead_user', username);
+  showApp();
+});
+
+function toggleProfilePanel(e){
+  if(e) e.stopPropagation();
+  const panel = document.getElementById('profile-panel');
+  panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
+}
+document.getElementById('profile-trigger').addEventListener('click', toggleProfilePanel);
+document.getElementById('hamburger-btn').addEventListener('click', toggleProfilePanel);
+document.addEventListener('click', (e) => {
+  const wrap = document.querySelector('.profile-wrap');
+  if(wrap && !wrap.contains(e.target) && !e.target.closest('#hamburger-btn')){
+    document.getElementById('profile-panel').style.display = 'none';
+  }
+});
+document.getElementById('view-toggle-btn').addEventListener('click', () => { toggleViewMode(); document.getElementById('profile-panel').style.display = 'none'; });
+document.getElementById('switch-profile-btn').addEventListener('click', () => {
+  localStorage.removeItem('sterix_lead_user');
+  currentUser = null;
+  document.getElementById('profile-panel').style.display = 'none';
+  switchAuthTab('signIn');
+  showLogin();
+});
+document.getElementById('logout-btn').addEventListener('click', () => {
+  localStorage.removeItem('sterix_lead_user');
+  currentUser = null;
+  document.getElementById('profile-panel').style.display = 'none';
+  switchAuthTab('signIn');
+  showLogin();
+});
+
+document.querySelectorAll('.tab[data-tab]').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab[data-tab]').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    const which = tab.dataset.tab;
+    ['dashboard','trace','production','sterilization'].forEach(t => {
+      document.getElementById(t + '-tab').classList.toggle('hidden', t !== which);
+    });
+    const titles = { dashboard: 'Dashboard', trace: 'Trace a batch', production: 'Production Batches', sterilization: 'Sterilization Cycles' };
+    document.getElementById('page-title').textContent = titles[which];
+    if(which === 'dashboard') renderDashboard();
+    if(which === 'production') renderProduction();
+    if(which === 'sterilization') renderCycles();
+  });
+});
+
+async function loadAll(){
+  await Promise.all([loadSkus(), loadProductionBatches(), loadCycles(), loadCycleBatches()]);
+  renderDashboard();
+}
+
+async function loadSkus(){
+  const { data, error } = await sb.from('skus').select('id, name, category, sku_code').order('name');
+  if(error){ console.error(error); return; }
+  skus = data || [];
+}
+
+async function loadProductionBatches(){
+  const { data, error } = await sb.from('production_batches').select('*, skus(name, category, sku_code)').order('produced_at', { ascending: false });
+  if(error){ console.error(error); return; }
+  productionBatches = data || [];
+}
+
+async function loadCycles(){
+  const { data, error } = await sb.from('sterilization_cycles').select('*').order('cycle_date', { ascending: false });
+  if(error){ console.error(error); return; }
+  cycles = data || [];
+}
+
+async function loadCycleBatches(){
+  const { data, error } = await sb.from('sterilization_cycle_batches')
+    .select('*, production_batches(batch_no, qty_produced, skus(name)), sterilization_cycles(cycle_no, cycle_date, biological_indicator_result)');
+  if(error){ console.error(error); return; }
+  cycleBatches = data || [];
+}
+
+function renderDashboard(){
+  const pendingRelease = cycleBatches.filter(cb => cb.release_status === 'Pending');
+  const onHold = cycleBatches.filter(cb => cb.release_status === 'On Hold');
+  const released = cycleBatches.filter(cb => cb.release_status === 'Released');
+
+  document.getElementById('dash-stats').innerHTML = `
+    <div class="stat-card"><p class="stat-label">Production Batches</p><p class="stat-value">${productionBatches.length}</p></div>
+    <div class="stat-card"><p class="stat-label">Sterilization Cycles Logged</p><p class="stat-value">${cycles.length}</p></div>
+    <div class="stat-card"><p class="stat-label">Awaiting Release</p><p class="stat-value ${pendingRelease.length > 0 ? 'warning' : ''}">${pendingRelease.length}</p></div>
+    <div class="stat-card"><p class="stat-label">On Hold</p><p class="stat-value ${onHold.length > 0 ? 'danger' : ''}">${onHold.length}</p></div>
+  `;
+
+  document.getElementById('dash-alert-wrap').innerHTML = (pendingRelease.length === 0 && onHold.length === 0)
+    ? `<div class="alert alert-success">No batches currently awaiting a release decision.</div>`
+    : '';
+
+  const tbody = document.getElementById('dash-pending-body');
+  const cardsEl = document.getElementById('dash-pending-cards');
+  const toShow = [...onHold, ...pendingRelease];
+  document.getElementById('dash-pending-empty').classList.toggle('hidden', toShow.length > 0);
+
+  tbody.innerHTML = toShow.map(cb => {
+    const pb = cb.production_batches;
+    const cyc = cb.sterilization_cycles;
+    const statusPill = cb.release_status === 'On Hold' ? 'pill-critical' : 'pill-low';
+    return `
+      <tr>
+        <td><strong>${pb?.batch_no || '—'}</strong></td>
+        <td>${pb?.skus?.name || '—'}</td>
+        <td>${cyc?.cycle_no || '—'}</td>
+        <td>${cyc?.biological_indicator_result || '—'}</td>
+        <td><span class="pill ${statusPill}">${cb.release_status}</span> <button class="btn" style="padding:4px 10px;font-size:12px;margin-left:6px;" onclick="openReleaseModal('${cb.id}')">Decide</button></td>
+      </tr>`;
+  }).join('');
+
+  cardsEl.innerHTML = toShow.map(cb => {
+    const pb = cb.production_batches;
+    const cyc = cb.sterilization_cycles;
+    const statusPill = cb.release_status === 'On Hold' ? 'pill-critical' : 'pill-low';
+    return `
+      <div class="info-card">
+        <p class="info-card-title">${pb?.batch_no || '—'} — ${pb?.skus?.name || '—'}</p>
+        <div class="info-card-row"><span>Cycle</span><span>${cyc?.cycle_no || '—'}</span></div>
+        <div class="info-card-row"><span>BI result</span><span>${cyc?.biological_indicator_result || '—'}</span></div>
+        <div class="info-card-footer">
+          <span class="pill ${statusPill}">${cb.release_status}</span>
+          <button class="btn" style="padding:4px 10px;font-size:12px;" onclick="openReleaseModal('${cb.id}')">Decide</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+document.getElementById('trace-btn').addEventListener('click', runTrace);
+document.getElementById('trace-input').addEventListener('keydown', (e) => { if(e.key === 'Enter') runTrace(); });
+
+function runTrace(){
+  const query = document.getElementById('trace-input').value.trim().toLowerCase();
+  const wrap = document.getElementById('trace-result-wrap');
+  if(!query){ wrap.innerHTML = ''; return; }
+
+  const pb = productionBatches.find(b => b.batch_no.toLowerCase() === query);
+  if(!pb){
+    wrap.innerHTML = `<div class="alert alert-warning" style="margin-top:16px;">No production batch found matching "${query}". Check the batch number and try again.</div>`;
+    return;
+  }
+
+  const links = cycleBatches.filter(cb => cb.production_batch_id === pb.id);
+
+  wrap.innerHTML = `
+    <div class="trace-result">
+      <div class="trace-section">
+        <p class="trace-section-title">Production Batch</p>
+        <div class="trace-row"><span>Batch number</span><span>${pb.batch_no}</span></div>
+        <div class="trace-row"><span>Product</span><span>${pb.skus?.name || '—'} ${pb.skus?.sku_code ? '(' + pb.skus.sku_code + ')' : ''}</span></div>
+        <div class="trace-row"><span>Quantity produced</span><span>${Number(pb.qty_produced).toLocaleString('en-IN')}</span></div>
+        <div class="trace-row"><span>Produced at</span><span>${new Date(pb.produced_at).toLocaleString('en-IN')}</span></div>
+        <div class="trace-row"><span>Produced by</span><span>${pb.produced_by || '—'}</span></div>
+        ${pb.component_batch_refs && pb.component_batch_refs.length > 0 ? `<div class="trace-row"><span>Component batches used</span><span>${pb.component_batch_refs.join(', ')}</span></div>` : ''}
+        ${pb.notes ? `<div class="trace-row"><span>Notes</span><span>${pb.notes}</span></div>` : ''}
+      </div>
+
+      ${links.length === 0 ? `
+        <div class="trace-section">
+          <p class="trace-section-title">Sterilization</p>
+          <p style="font-size:13px;color:var(--text-tertiary);">This batch hasn't been linked to a sterilization cycle yet.</p>
+        </div>
+      ` : links.map(link => {
+        const cyc = link.sterilization_cycles;
+        const statusPill = link.release_status === 'Released' ? 'pill-ok' : link.release_status === 'Rejected' ? 'pill-critical' : link.release_status === 'On Hold' ? 'pill-critical' : 'pill-low';
+        return `
+          <div class="trace-section">
+            <p class="trace-section-title">Sterilization Cycle ${cyc?.cycle_no || ''}</p>
+            <div class="trace-row"><span>Cycle date</span><span>${cyc ? new Date(cyc.cycle_date).toLocaleDateString('en-IN') : '—'}</span></div>
+            <div class="trace-row"><span>Biological indicator result</span><span>${cyc?.biological_indicator_result || '—'}</span></div>
+            <div class="trace-row"><span>Release status</span><span><span class="pill ${statusPill}">${link.release_status}</span></span></div>
+            ${link.released_by ? `<div class="trace-row"><span>Released by</span><span>${link.released_by} on ${new Date(link.released_at).toLocaleDateString('en-IN')}</span></div>` : ''}
+            ${link.rejection_reason ? `<div class="trace-row"><span>Rejection reason</span><span>${link.rejection_reason}</span></div>` : ''}
+          </div>`;
+      }).join('')}
+    </div>`;
+}
+
+function renderProduction(){
+  const search = (document.getElementById('prod-search').value || '').toLowerCase();
+  const filtered = productionBatches.filter(b =>
+    !search || b.batch_no.toLowerCase().includes(search) || (b.skus?.name || '').toLowerCase().includes(search)
+  );
+
+  document.getElementById('prod-empty').classList.toggle('hidden', filtered.length > 0);
+
+  function statusFor(batchId){
+    const links = cycleBatches.filter(cb => cb.production_batch_id === batchId);
+    if(links.length === 0) return { label: 'Not sterilized yet', pill: 'pill-neutral' };
+    const released = links.find(l => l.release_status === 'Released');
+    if(released) return { label: 'Released', pill: 'pill-ok' };
+    const rejected = links.find(l => l.release_status === 'Rejected');
+    if(rejected) return { label: 'Rejected', pill: 'pill-critical' };
+    const onHold = links.find(l => l.release_status === 'On Hold');
+    if(onHold) return { label: 'On hold', pill: 'pill-critical' };
+    return { label: 'Awaiting release', pill: 'pill-low' };
+  }
+
+  document.getElementById('prod-table-body').innerHTML = filtered.map(b => {
+    const status = statusFor(b.id);
+    return `
+      <tr>
+        <td><strong>${b.batch_no}</strong></td>
+        <td>${b.skus?.name || '—'}</td>
+        <td>${Number(b.qty_produced).toLocaleString('en-IN')}</td>
+        <td>${new Date(b.produced_at).toLocaleDateString('en-IN')}<div class="sku-sub">${b.produced_by || '—'}</div></td>
+        <td>${b.produced_by || '—'}</td>
+        <td><span class="pill ${status.pill}">${status.label}</span></td>
+      </tr>`;
+  }).join('');
+
+  document.getElementById('prod-cards').innerHTML = filtered.map(b => {
+    const status = statusFor(b.id);
+    return `
+      <div class="info-card">
+        <p class="info-card-title">${b.batch_no} — ${b.skus?.name || '—'}</p>
+        <div class="info-card-row"><span>Qty</span><span>${Number(b.qty_produced).toLocaleString('en-IN')}</span></div>
+        <div class="info-card-row"><span>Produced</span><span>${new Date(b.produced_at).toLocaleDateString('en-IN')} by ${b.produced_by || '—'}</span></div>
+        <div class="info-card-footer"><span class="pill ${status.pill}">${status.label}</span></div>
+      </div>`;
+  }).join('');
+}
+document.getElementById('prod-search').addEventListener('input', renderProduction);
+
+document.getElementById('add-production-batch-btn').addEventListener('click', () => {
+  if(skus.length === 0){ alert('No products found — check the skus table.'); return; }
+  document.getElementById('modal-root').innerHTML = `
+    <div class="modal-overlay" onclick="if(event.target===this) closeModal()">
+      <div class="modal">
+        <h3>Log a new production batch</h3>
+        <div class="form-row"><label>Batch number</label><input type="text" id="pb-batch-no" placeholder="e.g. PB-0001" /></div>
+        <div class="form-row">
+          <label>Product</label>
+          <select id="pb-sku-picker">${skus.map(s => `<option value="${s.id}">${s.name}${s.sku_code ? ' (' + s.sku_code + ')' : ''}</option>`).join('')}</select>
+        </div>
+        <div class="form-row-grid">
+          <div class="form-row"><label>Quantity produced</label><input type="number" id="pb-qty" min="1" /></div>
+          <div class="form-row"><label>Production date/time</label><input type="datetime-local" id="pb-produced-at" /></div>
+        </div>
+        <div class="form-row"><label>Component batch numbers used (comma-separated, optional)</label><input type="text" id="pb-component-refs" placeholder="e.g. BAR-0726, PLG-0801" /></div>
+        <div class="form-row"><label>Notes (optional)</label><textarea id="pb-notes" rows="2"></textarea></div>
+        <div class="modal-actions">
+          <button class="btn" onclick="closeModal()">Cancel</button>
+          <button class="btn btn-primary" id="pb-submit-btn" onclick="submitProductionBatch()">Save batch</button>
+        </div>
+      </div>
+    </div>`;
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  document.getElementById('pb-produced-at').value = now.toISOString().slice(0,16);
+});
+
+async function submitProductionBatch(){
+  const batchNo = document.getElementById('pb-batch-no').value.trim();
+  const skuId = document.getElementById('pb-sku-picker').value;
+  const qty = Number(document.getElementById('pb-qty').value);
+  const producedAt = document.getElementById('pb-produced-at').value;
+  const componentRefsRaw = document.getElementById('pb-component-refs').value.trim();
+  const notes = document.getElementById('pb-notes').value.trim();
+
+  if(!batchNo || !qty || qty <= 0){ alert('Enter a batch number and a valid quantity.'); return; }
+
+  const btn = document.getElementById('pb-submit-btn');
+  btn.disabled = true; btn.textContent = 'Saving...';
+
+  const componentBatchRefs = componentRefsRaw ? componentRefsRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
+
+  const { error } = await sb.from('production_batches').insert({
+    batch_no: batchNo, sku_id: skuId, qty_produced: qty,
+    produced_at: producedAt ? new Date(producedAt).toISOString() : new Date().toISOString(),
+    produced_by: currentUser.username, component_batch_refs: componentBatchRefs,
+    notes: notes || null
+  });
+
+  if(error){
+    btn.disabled = false; btn.textContent = 'Save batch';
+    alert('Error: ' + (error.message.includes('duplicate') ? 'That batch number already exists.' : error.message));
+    return;
+  }
+
+  closeModal();
+  await loadProductionBatches();
+  renderProduction();
+}
+
+function renderCycles(){
+  const search = (document.getElementById('cycle-search').value || '').toLowerCase();
+  const filtered = cycles.filter(c => !search || c.cycle_no.toLowerCase().includes(search));
+
+  document.getElementById('cycle-empty').classList.toggle('hidden', filtered.length > 0);
+
+  function batchCountFor(cycleId){
+    return cycleBatches.filter(cb => cb.cycle_id === cycleId).length;
+  }
+  function biPill(result){
+    if(result === 'Pass') return 'pill-ok';
+    if(result === 'Fail') return 'pill-critical';
+    return 'pill-neutral';
+  }
+
+  document.getElementById('cycle-table-body').innerHTML = filtered.map(c => `
+    <tr>
+      <td><strong>${c.cycle_no}</strong></td>
+      <td>${new Date(c.cycle_date).toLocaleDateString('en-IN')}</td>
+      <td>${c.gas_concentration_mg_l ?? '—'}</td>
+      <td>${c.exposure_temperature_c ?? '—'}</td>
+      <td>${c.exposure_time_minutes ?? '—'}</td>
+      <td>${c.relative_humidity_pct ?? '—'}</td>
+      <td><span class="pill ${biPill(c.biological_indicator_result)}">${c.biological_indicator_result}</span></td>
+      <td>${batchCountFor(c.id)} batch${batchCountFor(c.id) === 1 ? '' : 'es'}</td>
+      <td><button class="btn" style="padding:5px 10px;font-size:12px;" onclick="openLinkBatchesModal('${c.id}')">Link batches</button></td>
+    </tr>`).join('');
+
+  document.getElementById('cycle-cards').innerHTML = filtered.map(c => `
+    <div class="info-card">
+      <p class="info-card-title">${c.cycle_no} — ${new Date(c.cycle_date).toLocaleDateString('en-IN')}</p>
+      <div class="info-card-row"><span>Gas / Temp / Time / RH</span><span>${c.gas_concentration_mg_l ?? '—'} mg/L · ${c.exposure_temperature_c ?? '—'}°C · ${c.exposure_time_minutes ?? '—'}min · ${c.relative_humidity_pct ?? '—'}%</span></div>
+      <div class="info-card-row"><span>BI result</span><span class="pill ${biPill(c.biological_indicator_result)}">${c.biological_indicator_result}</span></div>
+      <div class="info-card-footer">
+        <span>${batchCountFor(c.id)} batch${batchCountFor(c.id) === 1 ? '' : 'es'}</span>
+        <button class="btn" style="padding:5px 10px;font-size:12px;" onclick="openLinkBatchesModal('${c.id}')">Link batches</button>
+      </div>
+    </div>`).join('');
+}
+document.getElementById('cycle-search').addEventListener('input', renderCycles);
+
+document.getElementById('add-cycle-btn').addEventListener('click', () => {
+  document.getElementById('modal-root').innerHTML = `
+    <div class="modal-overlay" onclick="if(event.target===this) closeModal()">
+      <div class="modal">
+        <h3>Log a new sterilization cycle</h3>
+        <p style="font-size:13px;color:var(--text-secondary);margin:-8px 0 14px;">Records the critical process parameters per ISO 11135 routine control requirements.</p>
+        <div class="form-row-grid">
+          <div class="form-row"><label>Cycle number</label><input type="text" id="cyc-no" placeholder="e.g. EO-2026-0142" /></div>
+          <div class="form-row"><label>Cycle date</label><input type="date" id="cyc-date" /></div>
+        </div>
+        <div class="form-row-grid">
+          <div class="form-row"><label>Gas concentration (mg/L)</label><input type="number" id="cyc-gas" step="0.1" /></div>
+          <div class="form-row"><label>Exposure temperature (°C)</label><input type="number" id="cyc-temp" step="0.1" /></div>
+        </div>
+        <div class="form-row-grid">
+          <div class="form-row"><label>Exposure time (minutes)</label><input type="number" id="cyc-time" step="1" /></div>
+          <div class="form-row"><label>Relative humidity (%)</label><input type="number" id="cyc-rh" step="0.1" /></div>
+        </div>
+        <div class="form-row-grid">
+          <div class="form-row">
+            <label>Biological indicator result</label>
+            <select id="cyc-bi">
+              <option value="Pending">Pending</option>
+              <option value="Pass">Pass</option>
+              <option value="Fail">Fail</option>
+              <option value="Not tested">Not tested</option>
+            </select>
+          </div>
+          <div class="form-row"><label>Equipment / chamber ID (optional)</label><input type="text" id="cyc-equipment" /></div>
+        </div>
+        <div class="form-row"><label>Operator</label><input type="text" id="cyc-operator" value="${currentUser.username}" /></div>
+        <div class="form-row"><label>Notes (optional)</label><textarea id="cyc-notes" rows="2"></textarea></div>
+        <div class="modal-actions">
+          <button class="btn" onclick="closeModal()">Cancel</button>
+          <button class="btn btn-primary" id="cyc-submit-btn" onclick="submitCycle()">Save cycle</button>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById('cyc-date').value = new Date().toISOString().slice(0,10);
+});
+
+async function submitCycle(){
+  const cycleNo = document.getElementById('cyc-no').value.trim();
+  const cycleDate = document.getElementById('cyc-date').value;
+  if(!cycleNo){ alert('Enter a cycle number.'); return; }
+
+  const btn = document.getElementById('cyc-submit-btn');
+  btn.disabled = true; btn.textContent = 'Saving...';
+
+  const { error } = await sb.from('sterilization_cycles').insert({
+    cycle_no: cycleNo, cycle_date: cycleDate || new Date().toISOString().slice(0,10),
+    gas_concentration_mg_l: Number(document.getElementById('cyc-gas').value) || null,
+    exposure_temperature_c: Number(document.getElementById('cyc-temp').value) || null,
+    exposure_time_minutes: Number(document.getElementById('cyc-time').value) || null,
+    relative_humidity_pct: Number(document.getElementById('cyc-rh').value) || null,
+    biological_indicator_result: document.getElementById('cyc-bi').value,
+    equipment_id: document.getElementById('cyc-equipment').value.trim() || null,
+    operator: document.getElementById('cyc-operator').value.trim() || null,
+    notes: document.getElementById('cyc-notes').value.trim() || null,
+    created_by: currentUser.username
+  });
+
+  if(error){
+    btn.disabled = false; btn.textContent = 'Save cycle';
+    alert('Error: ' + (error.message.includes('duplicate') ? 'That cycle number already exists.' : error.message));
+    return;
+  }
+
+  closeModal();
+  await loadCycles();
+  renderCycles();
+  renderDashboard();
+}
+
+function openLinkBatchesModal(cycleId){
+  const cycle = cycles.find(c => c.id === cycleId);
+  const alreadyLinkedIds = new Set(cycleBatches.filter(cb => cb.cycle_id === cycleId).map(cb => cb.production_batch_id));
+  const availableBatches = productionBatches.filter(b => !alreadyLinkedIds.has(b.id));
+  const linkedRows = cycleBatches.filter(cb => cb.cycle_id === cycleId);
+
+  document.getElementById('modal-root').innerHTML = `
+    <div class="modal-overlay" onclick="if(event.target===this) closeModal()">
+      <div class="modal">
+        <h3>Cycle ${cycle?.cycle_no || ''} — linked batches</h3>
+
+        ${linkedRows.length > 0 ? `
+          <div style="margin-bottom:16px;">
+            ${linkedRows.map(cb => `
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);">
+                <span style="font-size:13px;">${cb.production_batches?.batch_no || '—'}</span>
+                <span class="pill ${cb.release_status === 'Released' ? 'pill-ok' : cb.release_status === 'Rejected' || cb.release_status === 'On Hold' ? 'pill-critical' : 'pill-low'}">${cb.release_status}</span>
+              </div>
+            `).join('')}
+          </div>
+        ` : `<p style="font-size:13px;color:var(--text-tertiary);margin:-8px 0 14px;">No batches linked to this cycle yet.</p>`}
+
+        ${availableBatches.length > 0 ? `
+          <div class="form-row">
+            <label>Add a production batch to this cycle</label>
+            <select id="link-batch-picker">
+              <option value="">— Select a batch —</option>
+              ${availableBatches.map(b => `<option value="${b.id}">${b.batch_no} — ${b.skus?.name || ''}</option>`).join('')}
+            </select>
+          </div>
+        ` : `<p style="font-size:13px;color:var(--text-tertiary);">No unlinked production batches available to add.</p>`}
+
+        <div class="modal-actions">
+          <button class="btn" onclick="closeModal()">Close</button>
+          ${availableBatches.length > 0 ? `<button class="btn btn-primary" onclick="submitLinkBatch('${cycleId}')">Add to cycle</button>` : ''}
+        </div>
+      </div>
+    </div>`;
+}
+
+async function submitLinkBatch(cycleId){
+  const batchId = document.getElementById('link-batch-picker').value;
+  if(!batchId){ alert('Select a batch to add.'); return; }
+
+  const { error } = await sb.from('sterilization_cycle_batches').insert({ cycle_id: cycleId, production_batch_id: batchId });
+  if(error){ alert('Error: ' + error.message); return; }
+
+  await loadCycleBatches();
+  openLinkBatchesModal(cycleId);
+  renderCycles();
+  renderDashboard();
+}
+
+function openReleaseModal(cycleBatchId){
+  const cb = cycleBatches.find(x => x.id === cycleBatchId);
+  if(!cb){ alert('Could not find that record.'); return; }
+
+  document.getElementById('modal-root').innerHTML = `
+    <div class="modal-overlay" onclick="if(event.target===this) closeModal()">
+      <div class="modal" style="max-width:420px;">
+        <h3>Release decision — ${cb.production_batches?.batch_no || ''}</h3>
+        <p style="font-size:13px;color:var(--text-secondary);margin:-8px 0 14px;">Per ISO 11135 single batch release, this decision applies to this batch within this cycle only.</p>
+        <div class="form-row">
+          <label>Decision</label>
+          <select id="release-decision">
+            <option value="Released">Release</option>
+            <option value="Rejected">Reject</option>
+            <option value="On Hold">Put on hold</option>
+          </select>
+        </div>
+        <div class="form-row" id="release-reason-row" style="display:none;">
+          <label>Reason</label>
+          <textarea id="release-reason" rows="2"></textarea>
+        </div>
+        <div class="modal-actions">
+          <button class="btn" onclick="closeModal()">Cancel</button>
+          <button class="btn btn-primary" onclick="submitReleaseDecision('${cycleBatchId}')">Save decision</button>
+        </div>
+      </div>
+    </div>`;
+
+  document.getElementById('release-decision').addEventListener('change', (e) => {
+    document.getElementById('release-reason-row').style.display = e.target.value === 'Released' ? 'none' : 'block';
+  });
+}
+
+async function submitReleaseDecision(cycleBatchId){
+  const decision = document.getElementById('release-decision').value;
+  const reason = document.getElementById('release-reason')?.value.trim() || null;
+
+  const payload = { release_status: decision };
+  if(decision === 'Released'){
+    payload.released_by = currentUser.username;
+    payload.released_at = new Date().toISOString();
+    payload.rejection_reason = null;
+  } else {
+    payload.rejection_reason = reason;
+  }
+
+  const { error } = await sb.from('sterilization_cycle_batches').update(payload).eq('id', cycleBatchId);
+  if(error){ alert('Error: ' + error.message); return; }
+
+  closeModal();
+  await loadCycleBatches();
+  renderDashboard();
+  renderProduction();
+}
+
+function closeModal(){
+  document.getElementById('modal-root').innerHTML = '';
+}
+
+checkSession();
+</script>
+</body>
+</html>
